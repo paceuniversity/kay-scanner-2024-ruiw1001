@@ -48,14 +48,6 @@ public class TokenStream {
         }
     }
 
-    private char readNext() throws IOException {
-        return readNextSafe();
-    }
-
-    private char readNextSafe() throws IOException {
-        return readNext();
-    }
-
     public Token nextToken() {
         Token t = new Token();
 
@@ -75,18 +67,17 @@ public class TokenStream {
         if (nextChar == '/' && input != null) {
             try {
                 input.mark(1);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 isEof = true;
             }
-            char n = 0;
+            int ch = 0;
             try {
-                n = (char) input.read();
+                ch = input.read();
                 input.reset();
             } catch (Exception e) {
-                n = 0;
+                ch = 0;
             }
-            String two = "" + nextChar + n;
-            if (n == '/') {
+            if (ch == '/') {
                 nextChar = readNextSafe();
                 while (!isEof && nextChar != '\n' && nextChar != 0) {
                     nextChar = readNextSafe();
@@ -104,27 +95,27 @@ public class TokenStream {
         if (input != null && "+-*/%=!<>|&:".indexOf(nextChar) != -1) {
             try {
                 input.mark(1);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 isEof = true;
             }
-            char n = 0;
+            int ch2 = 0;
             try {
-                n = (char) input.read();
+                ch2 = input.read();
                 input.reset();
             } catch (Exception e) {
-                n = 0;
+                ch2 = 0;
             }
-            String two = "" + nextChar + n;
-            if (two.equals("||") || two.equals("&&") || two.equals("==") ||
-                two.equals("!=") || two.equals(">=") || two.equals("<=") ||
-                two.equals(":=")) {
+            String twoOp = "" + nextChar + (char) ch2;
+            if (twoOp.equals("||") || twoOp.equals("&&") || twoOp.equals("==") ||
+                twoOp.equals("!=") || twoOp.equals(">=") || twoOp.equals("<=") ||
+                twoOp.equals(":=")) {
                 t.setType("Operator");
-                t.setValue(two);
+                t.setValue(twoOp);
                 nextChar = readNextSafe();
                 nextChar = readNextSafe();
                 return t;
             }
-            if (nextChar == ':' && n == '=') {
+            if (nextChar == ':' && ch2 == '=') {
                 t.setType("Operator");
                 t.setValue(":=");
                 nextChar = readNextSafe();

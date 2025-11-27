@@ -6,27 +6,28 @@ import java.util.*;
 public class TokenStream {
 
     private boolean isEof = false;
-    private int current;
     private PushbackReader reader;
 
     public TokenStream(String fileName) {
         try {
             reader = new PushbackReader(new FileReader(fileName));
-            advance();
         } catch (Exception e) {
             isEof = true;
         }
     }
 
-    private void advance() {
+    public boolean isEoFile() {
+        return isEof;
+    }
+
+    private int readChar() {
         try {
-            current = reader.read();
-            if (current == -1) {
-                isEof = true;
-            }
+            int c = reader.read();
+            if (c == -1) isEof = true;
+            return c;
         } catch (Exception e) {
             isEof = true;
-            current = -1;
+            return -1;
         }
     }
 
@@ -40,98 +41,88 @@ public class TokenStream {
         }
     }
 
-    public boolean isEoFile() {
-        return isEof;
-    }
-
     public Token nextToken() {
         Token t = new Token();
-        try {
-            while (!isEof && Character.isWhitespace(current)) {
-                advance();
-            }
 
-            if (isEof || current == -1) {
-                t.setType("EOF");
-                t.setValue("");
-                return t;
-            }
+        int c;
+        while (!isEof && (c = readChar()) != -1 && Character.isWhitespace((char)c)) {}
 
-            char c = (char) current;
-            int next = peek();
-            String two = "" + c + (char) next;
-
-            if (c == '/' && next == '/') {
-                StringBuilder sb = new StringBuilder();
-                sb.append("//");
-                advance(); advance();
-                while (!isEof && current != '\n' && current != -1) {
-                    sb.append((char)current);
-                    advance();
-                }
-                t.setType("Other");
-                t.setValue(sb.toString());
-                return t;
-            }
-
-            Set<String> multiOps = Set.of("==","!=","<=",">=","||","&&",":=");
-            if (multiOps.contains(two)) {
-                advance(); advance();
-                t.setType("Operator");
-                t.setValue(two);
-                return t;
-            }
-
-            if ("(){}[],;".indexOf(c) != -1) {
-                advance();
-                t.setType("Separator");
-                t.setValue(String.valueOf(c));
-                return t;
-            }
-
-            if ("+-*/<>=|&!:".indexOf(c) != -1) {
-                advance();
-                t.setType("Operator");
-                t.setValue(String.valueOf(c));
-                return t;
-            }
-
-            if (Character.isLetter(c)) {
-                StringBuilder sb = new StringBuilder();
-                while (!isEof && Character.isLetterOrDigit(current)) {
-                    sb.append((char)current);
-                    advance();
-                }
-                String word = sb.toString();
-                t.setType(isKeyword(word) ? "Keyword" : "Identifier");
-                t.setValue(word);
-                return t;
-            }
-
-            if (Character.isDigit(c)) {
-                String num = "";
-                while (!isEof && Character.isDigit(current)) {
-                    num += (char)current;
-                    advance();
-                }
-                t.setType("Literal");
-                t.setValue(num);
-                return t;
-            }
-
-            advance();
-            t.setType("Other");
-            t.setValue(String.valueOf(c));
-            return t;
-
-        } catch (Exception e) {
+        if (isEof) {
             t.setType("EOF");
             t.setValue("");
             return t;
         }
+
+        char ch = (char)c;
+        int next = peek();
+        String two = "" + ch + (char)next;
+
+        if (ch == '/' && next == '/') {
+            reader.unread('/');
+            StringBuilder sb = new StringBuilder();
+            int x;
+            while (!isEof && (x = readChar()) != '\n' && x != -1) {
+                sb.append((char)x);
+            }
+            t.setType("Other");
+            t.setValue(sb.toString());
+            return t;
+        }
+
+        if (Set.of("==","!=","<=",">=","||","&&",":=").contains(two)) {
+            readChar();
+            t.setType("Operator");
+            t.setValue(two);
+            return t;
+        }
+
+        if ("(){}[],;".indexOf(ch) != -1) {
+            t.setType("Separator");
+            t.setValue(String.valueOf(ch));
+            return t;
+        }
+
+        if ("+-*/<>=|&!:".indexOf(ch) != -1) {
+            t.setType("Operator");
+            t.setValue(String.valueOf(ch));
+            return t;
+        }
+
+        if (Character.isLetter(ch)) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(ch);
+            int x;
+            while (!isEof && (x = readChar()) != -1 && Character.isLetterOrDigit((char)x)) {
+                sb.append((char)x);
+            }
+            String word = sb.toString();
+            t.setType(isKeyword(word) ? "Keyword" : "Identifier");
+            t.setValue(word);
+            return t;
+        }
+
+        if (Character.isDigit(ch)) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(ch);
+            int x;
+            while (!isEof && (x = readChar()) != -1 && Character.isDigit((char)x)) {
+                sb.append((char)x);
+            }
+            t.setType("Literal");
+            t.setValue(sb.toString());
+            return t;
+        }
+
+        t.setType("Other");
+        t.setValue(String.valueOf(ch));
+        return t;
     }
 
     private boolean isKeyword(String s) {
         return Set.of("bool","else","if","integer","main","while").contains(s);
+    }
+
+    public static void main(String[] args) {
+        System.out.println("TokenStream loaded");
     }
 }

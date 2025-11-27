@@ -1,156 +1,129 @@
 package com.scanner.project;
 
-import java.io.*;
-import java.util.*;
+import java.io.PushbackReader;
+import java.io.FileReader;
+import java.io.IOException;
 
 public class TokenStream {
 
-    private boolean isEof = false;
-    private int current = 0;
     private PushbackReader reader;
+    private boolean isEof = false;
 
-    public TokenStream(String fileName) {
+    public TokenStream(String file) {
         try {
-            reader = new PushbackReader(new FileReader(fileName));
+            reader = new PushbackReader(new FileReader(file));
             advance();
-        } catch (Exception e) {
+        } catch (IOException e) {
             isEof = true;
         }
     }
 
-    public boolean isEoFile() {
-        return isEof;
-    }
+    private int current;
 
-    private int readChar() {
-        try {
-            int c = reader.read();
-            if (c == -1) isEof = true;
-            return c;
-        } catch (Exception e) {
+    private void advance() throws IOException {
+        current = reader.read();
+        if (current == -1) {
             isEof = true;
-            return -1;
         }
     }
 
-    private void advance() {
-        try {
-            current = reader.read();
-            if (current == -1) isEof = true;
-        } catch (Exception e) {
-            isEof = true;
-            current = -1;
-        }
-    }
-
-    private int peek() {
-        try {
-            int c = reader.read();
-            reader.unread(c);
-            return c;
-        } catch (Exception e) {
-            return -1;
-        }
+    private int peek() throws IOException {
+        int next = reader.read();
+        reader.unread(next);
+        return next;
     }
 
     private boolean isOperatorChar(char c) {
-        return "+-*/<>=|&!:".indexOf(c) != -1;
-    }
-
-    private boolean isSeparator(char c) {
-        return "(){}[],;".indexOf(c) != -1;
-    }
-
-    private boolean isKeyword(String s) {
-        return Set.of("bool","else","if","integer","main","while").contains(s);
-    }
-
-    private boolean isTwoCharOperator(String s) {
-        return Set.of("==","!=","<=",">=","||","&&",":=").contains(s);
+        return "+-*/%=!<>|&".indexOf(c) != -1;
     }
 
     public Token nextToken() {
-        Token t = new Token();
-
         try {
-            while (!isEof && Character.isWhitespace((char)current)) {
+            while (!isEof && Character.isWhitespace((char) current)) {
                 advance();
             }
 
-            if (isEof || current == -1) {
+            if (isEof) {
+                Token t = new Token();
                 t.setType("EOF");
                 t.setValue("");
                 return t;
             }
 
-            char ch = (char)current;
+            char c = (char) current;
             int next = peek();
-            String two = "" + ch + (char)next;
+            String twoChar = "" + c + (char) next;
 
-            if (ch == '/' && next == '/') {
+            if (c == '/' && next == '/') {
                 StringBuilder sb = new StringBuilder("//");
                 advance(); advance();
-                int x;
-                while (!isEof && (x = readChar()) != -1 && x != '\n') {
-                    sb.append((char)x);
+                while (!isEof && current != '\n') {
+                    sb.append((char) current);
+                    advance();
                 }
+                Token t = new Token();
                 t.setType("Other");
                 t.setValue(sb.toString());
                 return t;
             }
 
-            if (isTwoCharOperator(two)) {
+            if ("== != <= >= || &&".contains(twoChar)) {
                 advance(); advance();
+                Token t = new Token();
                 t.setType("Operator");
-                t.setValue(two);
+                t.setValue(twoChar);
                 return t;
             }
 
-            if (isSeparator(ch)) {
+            if ("(){}[],;".indexOf(c) != -1) {
                 advance();
+                Token t = new Token();
                 t.setType("Separator");
-                t.setValue(String.valueOf(ch));
+                t.setValue(String.valueOf(c));
                 return t;
             }
 
-            if (isOperatorChar(ch)) {
+            if (isOperatorChar(c)) {
                 advance();
+                Token t = new Token();
                 t.setType("Operator");
-                t.setValue(String.valueOf(ch));
+                t.setValue(String.valueOf(c));
                 return t;
             }
 
-            if (Character.isLetter(ch)) {
+            if (Character.isDigit(c)) {
                 StringBuilder sb = new StringBuilder();
-                sb.append(ch);
-                int x;
-                while (!isEof && (x = readChar()) != -1 && Character.isLetterOrDigit((char)x)) {
-                    sb.append((char)x);
+                while (!isEof && Character.isDigit((char) current)) {
+                    sb.append((char) current);
+                    advance();
+                }
+                Token t = new Token();
+                t.setType("Literal");
+                t.setValue(sb.toString());
+                return t;
+            }
+
+            if (Character.isLetter(c)) {
+                StringBuilder sb = new StringBuilder();
+                while (!isEof && Character.isLetter((char) current)) {
+                    sb.append((char) current);
+                    advance();
                 }
                 String word = sb.toString();
-                t.setType(isKeyword(word) ? "Keyword" : "Identifier");
+                Token t = new Token();
+                t.setType(word.equals("if") || word.equals("else") || word.equals("while") ? "Keyword" : "Identifier");
                 t.setValue(word);
                 return t;
             }
 
-            if (Character.isDigit(ch)) {
-                String num = "";
-                int x = current;
-                while (!isEof && x != -1 && Character.isDigit((char)x)) {
-                    num += (char)x;
-                    x = readChar();
-                }
-                t.setType("Literal");
-                t.setValue(num);
-                return t;
-            }
-
             advance();
+            Token t = new Token();
             t.setType("Other");
-            t.setValue(String.valueOf(ch));
+            t.setValue(String.valueOf(c));
             return t;
 
         } catch (Exception e) {
+            Token t = new Token();
             t.setType("EOF");
             t.setValue("");
             return t;

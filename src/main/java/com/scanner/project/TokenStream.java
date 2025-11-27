@@ -63,26 +63,17 @@ public class TokenStream {
         return "+-*/%=!<>|&:".indexOf(c) != -1;
     }
 
-    private boolean isOperator(char c) {
-        return isOperatorChar(c);
-    }
-
-    private boolean isTwoCharOperator(String op) {
-        return op.equals("==") || op.equals("!=") || op.equals("<=") || op.equals(">=")
-                || op.equals("&&") || op.equals("||") || op.equals("**") || op.equals(":=");
-    }
-
     private boolean isKeyword(String s) {
-        return s.equals("bool") || s.equals("else") || s.equals("if") || s.equals("integer")
-                || s.equals("main") || s.equals("while") || s.equals("return") || s.equals("int")
-                || s.equals("void");
+        return s.equals("bool") || s.equals("else") || s.equals("if") ||
+               s.equals("integer") || s.equals("main") || s.equals("while") ||
+               s.equals("return") || s.equals("int") || s.equals("void");
     }
 
     private boolean isLetter(char c) {
         return Character.isLetter(c) || c == '_';
     }
 
-    private boolean isDigit(char c) {
+    private boolean isDigitChar(char c) {
         return Character.isDigit(c);
     }
 
@@ -91,7 +82,15 @@ public class TokenStream {
         t.setType("Other");
         t.setValue("");
 
-        skipWhiteSpace();
+        if (isEof || nextChar == 0) {
+            t.setType("EOF");
+            t.setValue("");
+            return t;
+        }
+
+        while (!isEof && Character.isWhitespace(nextChar)) {
+            readNext();
+        }
 
         if (isEof || nextChar == 0) {
             t.setType("EOF");
@@ -99,7 +98,9 @@ public class TokenStream {
             return t;
         }
 
-        if (nextChar == '/' && peek() == '/') {
+        char c = nextChar;
+
+        if (c == '/' && peek() == '/') {
             readNext();
             while (!isEof) {
                 readNext();
@@ -109,13 +110,15 @@ public class TokenStream {
             return nextToken();
         }
 
-        if (isOperator(nextChar)) {
+        if (isOperatorChar(c)) {
             StringBuilder sb = new StringBuilder();
-            sb.append(nextChar);
+            sb.append(c);
             char p = peek();
             if (!isEof && isOperatorChar(p)) {
-                String op2 = "" + nextChar + p;
-                if (isTwoCharOperator(op2)) {
+                String two = "" + c + p;
+                if (two.equals("**") || two.equals("==") || two.equals("!=") ||
+                    two.equals("&&") || two.equals("||") || two.equals(">=") ||
+                    two.equals("<=") || two.equals(":=")) {
                     sb.append(p);
                     readNext();
                     readNext();
@@ -130,33 +133,27 @@ public class TokenStream {
             return t;
         }
 
-        if (isSeparator(nextChar)) {
-            char sep = nextChar;
+        if (isSeparator(c)) {
             readNext();
             t.setType("Separator");
-            t.setValue(String.valueOf(sep));
+            t.setValue(String.valueOf(c));
             return t;
         }
 
-        if (isLetter(nextChar)) {
+        if (isLetter(c)) {
             StringBuilder sb = new StringBuilder();
-            sb.append(nextChar);
+            sb.append(c);
             readNext();
-            while (!isEof) {
-                char p = peek();
-                if (isLetter(p) || isDigit(p)) {
-                    sb.append(p);
-                    readNext();
-                } else {
-                    break;
-                }
+            while (!isEof && isLetter(peek())) {
+                sb.append(peek());
+                readNext();
             }
             String word = sb.toString();
-            if (isKeyword(word)) {
-                t.setType("Keyword");
-                t.setValue(word);
-            } else if (word.equals("True") || word.equals("False")) {
+            if (word.equals("True") || word.equals("False")) {
                 t.setType("Literal");
+                t.setValue(word);
+            } else if (isKeyword(word)) {
+                t.setType("Keyword");
                 t.setValue(word);
             } else {
                 t.setType("Identifier");
@@ -165,9 +162,9 @@ public class TokenStream {
             return t;
         }
 
-        if (isDigit(nextChar)) {
+        if (isDigitChar(c)) {
             StringBuilder sb = new StringBuilder();
-            while (!isEof && Character.isDigit(peek())) {
+            while (!isEof && isDigitChar(peek())) {
                 sb.append(peek());
                 readNext();
             }
@@ -178,22 +175,8 @@ public class TokenStream {
         }
 
         t.setType("Other");
-        t.setValue(String.valueOf(nextChar));
+        t.setValue(String.valueOf(c));
         readNext();
         return t;
-    }
-
-    private void skipWhiteSpace() {
-        while (!isEof && input != null) {
-            if (!Character.isWhitespace(peek())) break;
-            readNext();
-        }
-        if (nextChar == '\n') linenum++;
-    }
-
-    private void skipWhiteSpaceAlt() {
-        while (!isEof && isWhiteSpace(nextChar)) {
-            readNext();
-        }
     }
 }

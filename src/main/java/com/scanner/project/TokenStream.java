@@ -17,30 +17,53 @@ public class TokenStream {
             nextChar = readNext();
         } catch (Exception e) {
             isEof = true;
+            input = null;
+            nextChar = 0;
         }
     }
 
-    private char readNext() {
+    private char readNext() throws IOException {
         int c;
-        try {
-            if (input == null) return 0;
-            c = input.read();
-        } catch (IOException e) {
+        if (input == null) {
+            isEof = true;
             return 0;
         }
+        c = input.read();
         if (c == -1) {
             isEof = true;
             return 0;
         }
-        if ((char)c == '\n') linenum++;
+        if ((char) c == '\n') {
+            linenum++;
+        }
         return (char) c;
+    }
+
+    private char readNextSafe() {
+        try {
+            return readNext();
+        } catch (IOException e) {
+            isEof = true;
+            return 0;
+        }
+    }
+
+    private char readNext() throws IOException {
+        return readNextSafe();
+    }
+
+    private char readNextSafe() throws IOException {
+        return readNext();
     }
 
     public Token nextToken() {
         Token t = new Token();
 
-        while (!isEof && Character.isWhitespace(nextChar)) {
-            nextChar = readNext();
+        while (!isEof && nextChar != 0 && Character.isWhitespace(nextChar)) {
+            if (nextChar == '\n') {
+                linenum++;
+            }
+            nextChar = readNextSafe();
         }
 
         if (isEof || nextChar == 0) {
@@ -50,81 +73,100 @@ public class TokenStream {
         }
 
         if (nextChar == '/' && input != null) {
-            input.mark(1);
-            char n;
-            try { n = (char)input.read(); input.reset(); } catch(Exception e){ n = 0;}
+            try {
+                input.mark(1);
+            } catch (IOException e) {
+                isEof = true;
+            }
+            char n = 0;
+            try {
+                n = (char) input.read();
+                input.reset();
+            } catch (Exception e) {
+                n = 0;
+            }
+            String two = "" + nextChar + n;
             if (n == '/') {
-                nextChar = readNext();
+                nextChar = readNextSafe();
                 while (!isEof && nextChar != '\n' && nextChar != 0) {
-                    nextChar = readNext();
+                    nextChar = readNextSafe();
                 }
-                nextChar = readNext();
+                nextChar = readNextSafe();
                 return nextToken();
+            } else {
+                t.setType("Operator");
+                t.setValue("/");
+                nextChar = readNextSafe();
+                return t;
             }
         }
 
-        if ("+-*/%=!<>|&".indexOf(nextChar) != -1 && input != null) {
-            input.mark(1);
-            char n;
-            try { n = (char)input.read(); input.reset(); } catch(Exception e){ n = 0;}
+        if (input != null && "+-*/%=!<>|&:".indexOf(nextChar) != -1) {
+            try {
+                input.mark(1);
+            } catch (IOException e) {
+                isEof = true;
+            }
+            char n = 0;
+            try {
+                n = (char) input.read();
+                input.reset();
+            } catch (Exception e) {
+                n = 0;
+            }
             String two = "" + nextChar + n;
             if (two.equals("||") || two.equals("&&") || two.equals("==") ||
                 two.equals("!=") || two.equals(">=") || two.equals("<=") ||
-                two.equals(":=") ) {
+                two.equals(":=")) {
                 t.setType("Operator");
                 t.setValue(two);
-                nextChar = readNext();
-                nextChar = readNext();
+                nextChar = readNextSafe();
+                nextChar = readNextSafe();
                 return t;
             }
-            String one = String.valueOf(nextChar);
-            if (one.equals(":") && n == '=') {
+            if (nextChar == ':' && n == '=') {
                 t.setType("Operator");
                 t.setValue(":=");
-                nextChar = readNext();
-                nextChar = readNext();
+                nextChar = readNextSafe();
+                nextChar = readNextSafe();
                 return t;
             }
             t.setType("Operator");
-            t.setValue(one);
-            nextChar = readNext();
+            t.setValue(String.valueOf(nextChar));
+            nextChar = readNextSafe();
             return t;
         }
 
-        if ("();,{}[].".indexOf(nextChar) != -1) {
+        if ("();,{}[]".indexOf(nextChar) != -1) {
             t.setType("Separator");
             t.setValue(String.valueOf(nextChar));
-            nextChar = readNext();
+            nextChar = readNextSafe();
             return t;
         }
 
         if (Character.isLetter(nextChar) || nextChar == '_') {
             StringBuilder sb = new StringBuilder();
             sb.append(nextChar);
-            nextChar = readNext();
+            nextChar = readNextSafe();
             while (!isEof && (Character.isLetterOrDigit(nextChar) || nextChar == '_')) {
                 sb.append(nextChar);
-                nextChar = readNext();
+                nextChar = readNextSafe();
             }
             String word = sb.toString();
+            if (word.equals("true") || word.equals("false") || word.equals("TRUE")) {
+                t.setType("Identifier");
+                t.setValue(word);
+                return t;
+            }
             if (word.equals("True") || word.equals("False")) {
                 t.setType("Literal");
                 t.setValue(word);
                 return t;
             }
             if (word.equals("bool") || word.equals("if") || word.equals("else") ||
-                word.equals("integer") || word.equals("main") || word.equals("while")) {
+                word.equals("integer") || word.equals("main") || word.equals("while") ||
+                word.equals("return") || word.equals("int") || word.equals("void")) {
                 t.setType("Keyword");
-                t.setValue(word);
-                return t;
-            }
-            if (word.equals("int") || word.equals("void") || word.equals("return")) {
-                t.setType("Keyword");
-                t.setValue(word);
-                return t;
-            }
-            if (word.equals("true") || word.equals("false") || word.equals("TRUE") ) {
-                t.setType("Identifier");
                 t.setValue(word);
                 return t;
             }
@@ -136,20 +178,19 @@ public class TokenStream {
         if (Character.isDigit(nextChar)) {
             StringBuilder sb = new StringBuilder();
             sb.append(nextChar);
-            nextChar = readNext();
+            nextChar = readNextSafe();
             while (!isEof && Character.isDigit(nextChar)) {
                 sb.append(nextChar);
-                nextChar = readNext();
+                nextChar = readNextSafe();
             }
-            String num = sb.toString();
             t.setType("Literal");
-            t.setValue(num);
+            t.setValue(sb.toString());
             return t;
         }
 
         t.setType("Other");
         t.setValue(String.valueOf(nextChar));
-        nextChar = readNext();
+        nextChar = readNextSafe();
         return t;
     }
 }

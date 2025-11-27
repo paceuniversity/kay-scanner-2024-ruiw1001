@@ -1,207 +1,276 @@
 package com.scanner.project;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.PushbackReader;
-import java.io.IOException;
+import java.io.BufferedReader;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 
 public class TokenStream {
 
-    private PushbackReader reader;
-    public int linenum = 0;
-    private boolean eof = false;
+    private BufferedReader reader;
+    private boolean isEof = false;
+    private int lineNumber = 1;
 
-    public TokenStream(String filename) {
-        this(new File(filename));
+    public int getLineNumber() {
+        return lineNumber;
     }
 
-    public TokenStream(File inputFile) {
+    public TokenStream(String fileName) {
         try {
-            reader = new PushbackReader(new FileReader(inputFile));
-            advance();
+            this.reader = new BufferedReader(new FileReader(fileName));
         } catch (FileNotFoundException e) {
-            eof = true;
-            reader = null;
-        } catch (IOException e) {
-            eof = true;
+            throw new RuntimeException(e);
         }
     }
 
-    private int currentChar;
-
-    private void advance() {
-        if (reader == null) {
-            eof = true;
-            return;
-        }
+    private char readChar() {
         try {
-            currentChar = reader.read();
-            if (currentChar == -1) {
-                eof = true;
+            int nextCharInAscii = reader.read();
+            if (nextCharInAscii == -1) {
+                isEof = true;
+                return '\0';
             }
+            char nextChar = (char) nextCharInAscii;
+            if (nextChar == '\n') {
+                lineNumber++;
+            }
+            return nextChar;
         } catch (IOException e) {
-            eof = true;
+            throw new RuntimeException(e);
         }
     }
 
-    private int peek() {
-        if (reader == null) return -1;
+    private void skipWhiteSpace() {
+        char currChar = ' ';
         try {
-            int ch = reader.read();
-            reader.unread(ch);
-            return ch;
+            reader.mark(1);
+            int currCharInAscii = reader.read();
+            if (currCharInAscii == -1) {
+                isEof = true;
+                return;
+            }
+            currChar = (char) currCharInAscii;
+
+            while (isWhiteSpace(currChar) || isEndOfLine(currChar)) {
+                if (currChar == '\n') {
+                    lineNumber++;
+                }
+                reader.mark(1);
+                currCharInAscii = reader.read();
+                if (currCharInAscii == -1) {
+                    isEof = true;
+                    return;
+                }
+                currChar = (char) currCharInAscii;
+            }
+
+            reader.reset();
         } catch (IOException e) {
-            return -1;
+            throw new RuntimeException(e);
         }
-    }
-
-    private Token makeToken(String type, String value) {
-        Token t = new Token();
-        t.setType(type);
-        t.setValue(value);
-        return t;
-    }
-
-    private boolean isSeparator(char c) {
-        return c == '(' || c == ')' || c == '{' || c == '}' ||
-               c == '[' || c == ']' || c == ',' || c == ';' || c == '.';
-    }
-
-    private boolean isOperatorChar(char c) {
-        return "+-*/%=!<>|&".indexOf(c) != -1;
-    }
-
-    private boolean isTwoCharOperator(String op) {
-        return op.equals("==") || op.equals("!=") ||
-               op.equals("<=") || op.equals(">=") ||
-               op.equals("||") || op.equals("&&");
-    }
-
-    private boolean isKeyword(String word) {
-        return word.equals("if") ||
-               word.equals("else") ||
-               word.equals("while") ||
-               word.equals("return") ||
-               word.equals("function") ||
-               word.equals("var") ||
-               word.equals("int") ||
-               word.equals("boolean") ||
-               word.equals("True") || word.equals("False") ||
-               word.equals("main") || word.equals("void") || word.equals("integer");
     }
 
     public Token nextToken() {
-        if (eof) {
-            return makeToken("EOF", "");
+        Token currToken = new Token();
+        currToken.setType("Other");
+        currToken.setValue("");
+
+        if (isEof) {
+            currToken.setType("EOF");
+            return currToken;
         }
 
-        try {
-            while (!eof && (currentChar == '\n' || Character.isWhitespace((char) currentChar))) {
-                if (currentChar == '\n') linenum++;
-                advance();
-            }
+        skipWhiteSpace();
 
-            if (eof) {
-                return makeToken("EOF", "");
-            }
+        char nextChar = readChar();
 
-            char c = (char) currentChar;
-            int next = peek();
-            String twoChar = "" + c + (char) next;
+        while (!isEof && (isWhiteSpace(nextChar) || isEndOfLine(nextChar) || isCommentChar(nextChar))) {
 
-            if (c == '/' && next == '/') {
-                reader.read();
-                advance();
-                while (!eof) {
-                    int ch = reader.read();
-                    if (ch == -1) {
-                        eof = true;
-                        break;
-                    }
-                    if (ch == '\n') {
-                        linenum++;
-                        break;
-                    }
+            if (isCommentChar(nextChar)) {
+                while (!isEof && !isEndOfLine(nextChar)) {
+                    nextChar = readChar();
                 }
-                return nextToken();
+            } else {
+                break;
+            }
+            nextChar = readChar();
+        }
+
+        if (isEof) {
+            currToken.setType("EOF");
+            return currToken;
+        }
+
+        currToken.setValue(currToken.getValue() + nextChar);
+
+        char currChar = readChar();
+        skipWhiteSpace();
+
+        if (Character.isLetter(nextChar)) {
+            while (!isEof && (Character.isLetterOrDigit(currChar) || currChar == '_')) {
+                currToken.setValue(currToken.getValue() + currChar);
+                currChar = readChar();
             }
 
-            if (isOperatorChar(c)) {
-                if (next != -1 && isTwoCharOperator(twoChar)) {
-                    reader.read();
-                    advance(); advance();
-                    return makeToken("Operator", twoChar);
-                } else {
-                    advance();
-                    return makeToken("Operator", String.valueOf(c));
-                }
-            }
+            currToken.setType("Identifier");
 
-            if (isSeparator(c)) {
-                advance();
-                return makeToken("Separator", String.valueOf(c));
+            if (isKeyword(currToken.getValue())) {
+                currToken.setType("Keyword");
+            } else if (currToken.getValue().equals("True")
+                    || currToken.getValue().equals("False")) {
+                currToken.setType("Literal");
             }
+        }
+        else if (Character.isDigit(nextChar)) {
+            while (!isEof && Character.isDigit(currChar)) {
+                currToken.setValue(currToken.getValue() + currChar);
+                currChar = readChar();
+            }
+            currToken.setType("Literal");
+        }
+        else if (isSeparator(nextChar)) {
+            currToken.setType("Separator");
+        }
+        else if (isOperator(nextChar)) {
+            currToken.setType("Operator");
 
-            if (Character.isLetter(c) || c == '_') {
-                StringBuilder sb = new StringBuilder();
-                sb.append(c);
-                advance();
-                while (!eof) {
-                    int ch = reader.read();
-                    if (ch == -1) {
-                        eof = true;
-                        break;
+            switch (nextChar) {
+
+                case '+':
+                case '-':
+                case '*':
+                case '/':
+                    break;
+
+                case '<':
+                    if (currChar == '=') {
+                        currToken.setValue(currToken.getValue() + currChar);
+                        currChar = readChar();
                     }
-                    char cc = (char) ch;
-                    if (Character.isLetterOrDigit(cc) || cc == '_') {
-                        sb.append(cc);
-                        advance();
+                    break;
+
+                case '>':
+                    if (currChar == '=') {
+                        currToken.setValue(currToken.getValue() + currChar);
+                        currChar = readChar();
+                    }
+                    break;
+
+                case '=':
+                    if (currChar == '=') {
+                        currToken.setValue(currToken.getValue() + currChar);
+                        currChar = readChar();
                     } else {
-                        reader.unread(ch);
-                        break;
+                        currToken.setType("Other");
                     }
-                }
-                String word = sb.toString();
-                if (isKeyword(word)) {
-                    if (word.equals("True") || word.equals("False")) {
-                        return makeToken("Literal", word);
-                    }
-                    return makeToken("Keyword", word);
-                }
-                return makeToken("Identifier", word);
-            }
+                    break;
 
-            if (Character.isDigit(c)) {
-                StringBuilder sb = new StringBuilder();
-                sb.append(c);
-                advance();
-                while (!eof) {
-                    int ch = reader.read();
-                    if (ch == -1) {
-                        eof = true;
-                        break;
-                    }
-                    char cc = (char) ch;
-                    if (Character.isDigit(cc)) {
-                        sb.append(cc);
-                        advance();
+                case ':':
+                    if (currChar == '=') {
+                        currToken.setValue(currToken.getValue() + currChar);
+                        currChar = readChar();
                     } else {
-                        reader.unread(ch);
-                        break;
+                        currToken.setType("Other");
                     }
-                }
-                return makeToken("Literal", sb.toString());
+                    break;
+
+                case '!':
+                    if (currChar == '=') {
+                        currToken.setValue(currToken.getValue() + currChar);
+                        currChar = readChar();
+                    }
+                    break;
+
+                case '&':
+                    if (currChar == '&') {
+                        currToken.setValue(currToken.getValue() + currChar);
+                        currChar = readChar();
+                    } else {
+                        currToken.setType("Other");
+                    }
+                    break;
+
+                case '|':
+                    if (currChar == '|') {
+                        currToken.setValue(currToken.getValue() + currChar);
+                        currChar = readChar();
+                    } else {
+                        currToken.setType("Other");
+                    }
+                    break;
+
+                default:
+                    currToken.setType("Other");
             }
+        }
+        else {
+            while (!isEof && !isEndOfToken(currChar)) {
+                currToken.setValue(currToken.getValue() + currChar);
+                currChar = readChar();
+            }
+        }
 
-            advance();
-            return makeToken("Other", String.valueOf(c));
+        return currToken;
+    }
 
-        } catch (Exception e) {
-            Token t = new Token();
-            t.setType("EOF");
-            t.setValue("");
-            return t;
+    private boolean isSeparator(char currChar) {
+        if (currChar == '(' || currChar == ')' ||
+            currChar == '{' || currChar == '}' ||
+            currChar == ',' || currChar == ';') {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private boolean isOperator(char currChar) {
+        if (currChar == '+' || currChar == '-' || currChar == '*' ||
+            currChar == '/' || currChar == '<' || currChar == '>' ||
+            currChar == ':' || currChar == '!' || currChar == '=' ||
+            currChar == '&' || currChar == '|') {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private boolean isCommentChar(char currChar) {
+        return currChar == '/';
+    }
+
+    private boolean isEndOfToken(char currChar) {
+        if (isWhiteSpace(currChar) || isSeparator(currChar) ||
+            isOperator(currChar) || isCommentChar(currChar) ||
+            isEndOfLine(currChar)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private boolean isEndOfLine(char currChar) {
+        if (currChar == '\n' || currChar == '\r') {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private boolean isWhiteSpace(char currChar) {
+        if (currChar == ' ' || currChar == '\t' || currChar == '\f') {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private boolean isKeyword(String s) {
+        if (s.equals("bool") || s.equals("integer") ||
+            s.equals("if")   || s.equals("else")    ||
+            s.equals("main") || s.equals("while")) {
+            return true;
+        } else {
+            return false;
         }
     }
 }

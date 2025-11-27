@@ -1,7 +1,6 @@
 package com.scanner.project;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 
@@ -20,18 +19,10 @@ public class TokenStream {
         try {
             input = new BufferedReader(new FileReader(fileName));
             readNext();
-        } catch (FileNotFoundException e) {
+        } catch (Exception e) {
             isEof = true;
             input = null;
         }
-    }
-
-    private void readNext() {
-        readNext();
-    }
-
-    private void readNext() {
-        readNext();
     }
 
     private void readNext() {
@@ -79,18 +70,12 @@ public class TokenStream {
         readNext();
     }
 
-    private void skipWhiteSpace() {
-        while (!isEof && Character.isWhitespace(nextChar)) {
-            readNext();
-        }
-    }
-
     private boolean isSeparator(char c) {
         return "();,{}[].".indexOf(c) != -1;
     }
 
     private boolean isOperatorChar(char c) {
-        return "+-*/%=!<>|&".indexOf(c) != -1;
+        return "+-*/%=!<>|&:".indexOf(c) != -1;
     }
 
     private boolean isTwoCharOperator(String op) {
@@ -103,6 +88,22 @@ public class TokenStream {
         return s.equals("bool") || s.equals("else") || s.equals("if") ||
                s.equals("integer") || s.equals("main") || s.equals("while") ||
                s.equals("return") || s.equals("int") || s.equals("void");
+    }
+
+    private boolean isLetter(char c) {
+        return Character.isLetter(c) || c == '_';
+    }
+
+    private boolean isDigit(char c) {
+        return Character.isDigit(c);
+    }
+
+    private boolean isEndOfToken(char c) {
+        return (isEof || Character.isWhitespace(c) || isOperatorChar(c) || isSeparator(c));
+    }
+
+    private boolean isWhiteSpace(char c) {
+        return Character.isWhitespace(c);
     }
 
     public Token nextToken() {
@@ -118,7 +119,6 @@ public class TokenStream {
         }
 
         if (nextChar == '/' && peek() == '/') {
-            readNext();
             skipLine();
             return nextToken();
         }
@@ -127,11 +127,11 @@ public class TokenStream {
             StringBuilder sb = new StringBuilder();
             sb.append(nextChar);
 
-            if (!isEof && isOperatorChar(peek())) {
-                char second = peek();
-                String possible = "" + nextChar + second;
-                if (isTwoCharOperator(possible)) {
-                    sb.append(second);
+            char p = peek();
+            if (!isEof && isOperatorChar(p)) {
+                String op2 = "" + nextChar + p;
+                if (isTwoCharOperator(op2)) {
+                    sb.append(p);
                     readNext();
                     readNext();
                     t.setType("Operator");
@@ -153,13 +153,18 @@ public class TokenStream {
             return t;
         }
 
-        if (Character.isLetter(nextChar) || nextChar == '_') {
+        if (isLetter(nextChar)) {
             StringBuilder sb = new StringBuilder();
             sb.append(nextChar);
             readNext();
-            while (!isEof && (Character.isLetterOrDigit(nextChar) || nextChar == '_')) {
-                sb.append(nextChar);
-                readNext();
+            while (!isEof) {
+                char p = peek();
+                if (isLetter(p) || isDigit(p)) {
+                    sb.append(p);
+                    readNext();
+                } else {
+                    break;
+                }
             }
             String word = sb.toString();
             if (isKeyword(word)) {
@@ -175,21 +180,26 @@ public class TokenStream {
             return t;
         }
 
-        if (Character.isDigit(nextChar)) {
+        if (isDigit(nextChar)) {
             StringBuilder sb = new StringBuilder();
-            while (!isEof && Character.isDigit(nextChar)) {
-                sb.append(nextChar);
-                readNext();
+            while (!isEof && Character.isDigit(peek())) {
+                char p = peek();
+                if (Character.isDigit(p)) {
+                    sb.append(p);
+                    readNext();
+                } else {
+                    break;
+                }
             }
+            readNext();
             t.setType("Literal");
             t.setValue(sb.toString());
             return t;
         }
 
-        char other = nextChar;
-        readNext();
         t.setType("Other");
-        t.setValue(String.valueOf(other));
+        t.setValue(String.valueOf(nextChar));
+        readNext();
         return t;
     }
 }

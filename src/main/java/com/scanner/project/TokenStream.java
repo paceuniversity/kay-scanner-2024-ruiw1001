@@ -8,9 +8,8 @@ import java.io.IOException;
 public class TokenStream {
 
     private PushbackReader reader;
-    public int linenum = 0;
     private boolean eof = false;
-    private StringBuilder buffer = new StringBuilder();
+    public int linenum = 0;
 
     public TokenStream(String filename) {
         this(new File(filename));
@@ -19,13 +18,6 @@ public class TokenStream {
     public TokenStream(File file) {
         try {
             reader = new PushbackReader(new FileReader(file));
-            int first = reader.read();
-            if (first == -1) {
-                eof = true;
-                reader = null;
-                return;
-            }
-            reader.unread(first);
         } catch (IOException e) {
             eof = true;
             reader = null;
@@ -44,16 +36,13 @@ public class TokenStream {
     }
 
     private boolean isOperatorStart(char c) {
-        return "=!<>|&:".indexOf(c) != -1;
+        return "=!<>|&".indexOf(c) != -1;
     }
 
-    private boolean isTwoCharOperator(String op) {
-        return op.equals("==") || op.equals("!=") || op.equals("<=") ||
-               op.equals(">=") || op.equals("||") || op.equals("&&") || op.equals(":=");
-    }
-
-    private boolean isKeyword(String word) {
-        return word.equals("if") || word.equals("else") || word.equals("while") || word.equals("main") || word.equals("bool");
+    private boolean isOperator(String s) {
+        return s.equals("+") || s.equals("-") || s.equals("<") || s.equals(">") ||
+               s.equals("<=") || s.equals(">=") || s.equals("==") || s.equals("!=") ||
+               s.equals("&&") || s.equals("||") || s.equals(":=") || s.equals("=");
     }
 
     public Token nextToken() {
@@ -61,80 +50,84 @@ public class TokenStream {
             return makeToken("EOF", "");
         }
 
-        buffer.setLength(0);
-
         try {
             int ch;
-            while ((ch = reader.read()) != -1 && Character.isWhitespace((char) ch)) {
+
+            while ((ch = reader.read()) != -1 && Character.isWhitespace((char)ch)) {
                 if (ch == '\n') linenum++;
             }
+
             if (ch == -1) {
                 eof = true;
                 return makeToken("EOF", "");
             }
 
-            char c = (char) ch;
+            char c = (char)ch;
 
             if (c == '/') {
-                int next = reader.read();
-                if (next == '/') {
+                int n = reader.read();
+                if (n == '/') {
                     while ((ch = reader.read()) != -1 && ch != '\n');
-                    if (ch == '\n') linenum++;
+                    linenum++;
                     return makeToken("EOF", "");
                 } else {
-                    reader.unread(next);
+                    reader.unread(n);
                     return makeToken("Other", "/");
                 }
             }
 
-            if (c == '.') return makeToken("Other", ".");
-            if (c == '@') return makeToken("Other", "@");
-            if (c == '[') return makeToken("Other", "[");
-            if (c == ']') return makeToken("Other", "]");
-            
             if (isSeparator(c)) {
                 return makeToken("Separator", String.valueOf(c));
             }
 
             if (isOperatorStart(c)) {
-                int next = reader.read();
-                if (next == -1) {
+                int n = reader.read();
+                if (n == -1) {
                     return makeToken("Operator", String.valueOf(c));
                 }
-                String two = "" + c + (char) next;
-                if (isTwoCharOperator(two)) {
+                String two = "" + c + (char)n;
+                if (isOperator(two)) {
                     return makeToken("Operator", two);
                 }
-                reader.unread(next);
-                return makeToken(c == '&' || c == '|' ? "Operator" : "Operator", String.valueOf(c));
+                reader.unread(n);
+                return makeToken("Operator", String.valueOf(c));
             }
 
             if (Character.isLetter(c) || c == '_') {
                 StringBuilder sb = new StringBuilder();
                 sb.append(c);
-                int next;
-                while ((next = reader.read()) != -1 && (Character.isLetterOrDigit((char) next) || (char) next == '_')) {
-                    sb.append((char) next);
+                int n;
+                while ((n = reader.read()) != -1 && (Character.isLetterOrDigit((char)n) || (char)n=='_')) {
+                    sb.append((char)n);
                 }
-                if (next != -1) reader.unread(next);
+                if (n != -1) reader.unread(n);
                 String word = sb.toString();
+
                 if (word.equals("True") || word.equals("False")) {
                     return makeToken("Literal", word);
                 }
-                if (isKeyword(word)) {
+
+                if (isOperator(word)) {
+                    return makeToken("Operator", word);
+                }
+
+                if (word.equals("if") || word.equals("else") || word.equals("while") ||
+                    word.equals("main") || word.equals("bool") || word.equals("integer") ||
+                    word.equals("void") || word.equals("return")) {
                     return makeToken("Keyword", word);
                 }
+
                 return makeToken("Identifier", word);
             }
 
             if (Character.isDigit(c)) {
                 StringBuilder sb = new StringBuilder();
                 sb.append(c);
-                int next;
-                while ((next = reader.read()) != -1 && Character.isDigit((char) next)) {
-                    sb.append((char) next);
+                int n;
+                while ((n = reader.read()) != -1 && Character.isDigit((char)n)) {
+                    sb.append((char)n);
                 }
-                if (next != -1) reader.unread(next);
+                if (n != -1) reader.unread(n);
                 return makeToken("Literal", sb.toString());
             }
 

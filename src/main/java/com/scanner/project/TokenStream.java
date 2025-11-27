@@ -1,77 +1,147 @@
-package com.kaylerrenslow.parser;
+package com.scanner.project;
 
-import com.kaylerrenslow.parser.tokenizer.Token;
-import com.kaylerrenslow.parser.tokenizer.Tokenizer;
+import java.io.File;
+import java.io.FileReader;
+import java.io.PushbackReader;
+import java.io.IOException;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+public class TokenStream {
 
-public class TokenStream implements Iterable<Token> {
-    
-    private final List<Token> tokens;
-    private int position;
-    
-    public TokenStream(String input) {
-        this.tokens = new ArrayList<>();
-        this.position = 0;
-        tokenize(input);
+    private PushbackReader reader;
+    public int linenum = 0;
+    private boolean eof = false;
+    private StringBuilder buffer = new StringBuilder();
+
+    public TokenStream(String filename) {
+        this(new File(filename));
     }
-    
-    private void tokenize(String input) {
-        Tokenizer tokenizer = new Tokenizer(input);
-        while (tokenizer.hasNext()) {
-            Token token = tokenizer.next();
-            if (token != null) {
-                tokens.add(token);
+
+    public TokenStream(File file) {
+        try {
+            reader = new PushbackReader(new FileReader(file));
+            int first = reader.read();
+            if (first == -1) {
+                eof = true;
+                reader = null;
+                return;
             }
+            reader.unread(first);
+        } catch (IOException e) {
+            eof = true;
+            reader = null;
         }
     }
-    
-    public boolean hasNext() {
-        return position < tokens.size();
+
+    private Token makeToken(String type, String value) {
+        Token t = new Token();
+        t.setType(type);
+        t.setValue(value);
+        return t;
     }
-    
-    public Token next() {
-        if (!hasNext()) {
-            return null;
+
+    private boolean isSeparator(char c) {
+        return c == '(' || c == ')' || c == '{' || c == '}' || c == ',' || c == ';';
+    }
+
+    private boolean isOperatorStart(char c) {
+        return "=!<>|&:".indexOf(c) != -1;
+    }
+
+    private boolean isTwoCharOperator(String op) {
+        return op.equals("==") || op.equals("!=") || op.equals("<=") ||
+               op.equals(">=") || op.equals("||") || op.equals("&&") || op.equals(":=");
+    }
+
+    private boolean isKeyword(String word) {
+        return word.equals("if") || word.equals("else") || word.equals("while") || word.equals("main") || word.equals("bool");
+    }
+
+    public Token nextToken() {
+        if (eof || reader == null) {
+            return makeToken("EOF", "");
         }
-        return tokens.get(position++);
-    }
-    
-    public Token peek() {
-        if (!hasNext()) {
-            return null;
+
+        buffer.setLength(0);
+
+        try {
+            int ch;
+            while ((ch = reader.read()) != -1 && Character.isWhitespace((char) ch)) {
+                if (ch == '\n') linenum++;
+            }
+            if (ch == -1) {
+                eof = true;
+                return makeToken("EOF", "");
+            }
+
+            char c = (char) ch;
+
+            if (c == '/') {
+                int next = reader.read();
+                if (next == '/') {
+                    while ((ch = reader.read()) != -1 && ch != '\n');
+                    if (ch == '\n') linenum++;
+                    return makeToken("EOF", "");
+                } else {
+                    reader.unread(next);
+                    return makeToken("Other", "/");
+                }
+            }
+
+            if (c == '.') return makeToken("Other", ".");
+            if (c == '@') return makeToken("Other", "@");
+            if (c == '[') return makeToken("Other", "[");
+            if (c == ']') return makeToken("Other", "]");
+            
+            if (isSeparator(c)) {
+                return makeToken("Separator", String.valueOf(c));
+            }
+
+            if (isOperatorStart(c)) {
+                int next = reader.read();
+                if (next == -1) {
+                    return makeToken("Operator", String.valueOf(c));
+                }
+                String two = "" + c + (char) next;
+                if (isTwoCharOperator(two)) {
+                    return makeToken("Operator", two);
+                }
+                reader.unread(next);
+                return makeToken(c == '&' || c == '|' ? "Operator" : "Operator", String.valueOf(c));
+            }
+
+            if (Character.isLetter(c) || c == '_') {
+                StringBuilder sb = new StringBuilder();
+                sb.append(c);
+                int next;
+                while ((next = reader.read()) != -1 && (Character.isLetterOrDigit((char) next) || (char) next == '_')) {
+                    sb.append((char) next);
+                }
+                if (next != -1) reader.unread(next);
+                String word = sb.toString();
+                if (word.equals("True") || word.equals("False")) {
+                    return makeToken("Literal", word);
+                }
+                if (isKeyword(word)) {
+                    return makeToken("Keyword", word);
+                }
+                return makeToken("Identifier", word);
+            }
+
+            if (Character.isDigit(c)) {
+                StringBuilder sb = new StringBuilder();
+                sb.append(c);
+                int next;
+                while ((next = reader.read()) != -1 && Character.isDigit((char) next)) {
+                    sb.append((char) next);
+                }
+                if (next != -1) reader.unread(next);
+                return makeToken("Literal", sb.toString());
+            }
+
+            return makeToken("Other", String.valueOf(c));
+
+        } catch (IOException e) {
+            return makeToken("EOF", "");
         }
-        return tokens.get(position);
-    }
-    
-    public void reset() {
-        position = 0;
-    }
-    
-    public int getPosition() {
-        return position;
-    }
-    
-    public void setPosition(int position) {
-        if (position < 0 || position > tokens.size()) {
-            throw new IllegalArgumentException("Position out of bounds: " + position);
-        }
-        this.position = position;
-    }
-    
-    public List<Token> getTokens() {
-        return new ArrayList<>(tokens);
-    }
-    
-    @Override
-    public Iterator<Token> iterator() {
-        return tokens.iterator();
-    }
-    
-    @Override
-    public String toString() {
-        return "TokenStream{tokens=" + tokens + ", position=" + position + "}";
     }
 }

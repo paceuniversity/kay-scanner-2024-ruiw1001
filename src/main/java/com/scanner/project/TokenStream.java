@@ -31,43 +31,28 @@ public class TokenStream {
             i = (input == null) ? -1 : input.read();
         } catch (IOException e) {
             isEof = true;
-            nextChar = (char)0;
+            nextChar = (char) 0;
             return;
         }
         if (i == -1) {
             isEof = true;
-            nextChar = (char)0;
+            nextChar = (char) 0;
         } else {
-            nextChar = (char)i;
+            nextChar = (char) i;
             if (nextChar == '\n') linenum++;
         }
     }
 
     private char peek() {
-        if (isEof || input == null) return (char)0;
+        if (isEof || input == null) return (char) 0;
         try {
             input.mark(1);
             int i = input.read();
             input.reset();
-            return (i == -1) ? (char)0 : (char)i;
+            return (i == -1) ? (char) 0 : (char) i;
         } catch (IOException e) {
-            return (char)0;
+            return (char) 0;
         }
-    }
-
-    private void skipLine() {
-        int i;
-        while (!isEof && nextChar != '\n') {
-            try {
-                i = (input == null) ? -1 : input.read();
-                if (i == -1) { isEof = true; break; }
-                nextChar = (char)i;
-            } catch (IOException e) {
-                isEof = true;
-                break;
-            }
-        }
-        readNext();
     }
 
     private boolean isSeparator(char c) {
@@ -78,16 +63,19 @@ public class TokenStream {
         return "+-*/%=!<>|&:".indexOf(c) != -1;
     }
 
+    private boolean isOperator(char c) {
+        return isOperatorChar(c);
+    }
+
     private boolean isTwoCharOperator(String op) {
-        return op.equals("==") || op.equals("!=") || op.equals("<=") ||
-               op.equals(">=") || op.equals("&&") || op.equals("||") ||
-               op.equals("**") || op.equals(":=");
+        return op.equals("==") || op.equals("!=") || op.equals("<=") || op.equals(">=")
+                || op.equals("&&") || op.equals("||") || op.equals("**") || op.equals(":=");
     }
 
     private boolean isKeyword(String s) {
-        return s.equals("bool") || s.equals("else") || s.equals("if") ||
-               s.equals("integer") || s.equals("main") || s.equals("while") ||
-               s.equals("return") || s.equals("int") || s.equals("void");
+        return s.equals("bool") || s.equals("else") || s.equals("if") || s.equals("integer")
+                || s.equals("main") || s.equals("while") || s.equals("return") || s.equals("int")
+                || s.equals("void");
     }
 
     private boolean isLetter(char c) {
@@ -98,20 +86,13 @@ public class TokenStream {
         return Character.isDigit(c);
     }
 
-    private boolean isEndOfToken(char c) {
-        return (isEof || Character.isWhitespace(c) || isOperatorChar(c) || isSeparator(c));
-    }
-
-    private boolean isWhiteSpace(char c) {
-        return Character.isWhitespace(c);
-    }
-
     public Token nextToken() {
         Token t = new Token();
         t.setType("Other");
         t.setValue("");
 
         skipWhiteSpace();
+
         if (isEof || nextChar == 0) {
             t.setType("EOF");
             t.setValue("");
@@ -119,14 +100,18 @@ public class TokenStream {
         }
 
         if (nextChar == '/' && peek() == '/') {
-            skipLine();
+            readNext();
+            while (!isEof) {
+                readNext();
+                if (nextChar == '\n' || nextChar == 0) break;
+            }
+            readNext();
             return nextToken();
         }
 
-        if (isOperatorChar(nextChar)) {
+        if (isOperator(nextChar)) {
             StringBuilder sb = new StringBuilder();
             sb.append(nextChar);
-
             char p = peek();
             if (!isEof && isOperatorChar(p)) {
                 String op2 = "" + nextChar + p;
@@ -183,13 +168,8 @@ public class TokenStream {
         if (isDigit(nextChar)) {
             StringBuilder sb = new StringBuilder();
             while (!isEof && Character.isDigit(peek())) {
-                char p = peek();
-                if (Character.isDigit(p)) {
-                    sb.append(p);
-                    readNext();
-                } else {
-                    break;
-                }
+                sb.append(peek());
+                readNext();
             }
             readNext();
             t.setType("Literal");
@@ -201,5 +181,19 @@ public class TokenStream {
         t.setValue(String.valueOf(nextChar));
         readNext();
         return t;
+    }
+
+    private void skipWhiteSpace() {
+        while (!isEof && input != null) {
+            if (!Character.isWhitespace(peek())) break;
+            readNext();
+        }
+        if (nextChar == '\n') linenum++;
+    }
+
+    private void skipWhiteSpaceAlt() {
+        while (!isEof && isWhiteSpace(nextChar)) {
+            readNext();
+        }
     }
 }

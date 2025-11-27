@@ -18,13 +18,30 @@ public class TokenStream {
         } catch (Exception e) {
             eof = true;
             reader = null;
+            currentChar = -1;
         }
-
-        nextInternal(); 
+        advance();
     }
 
     public TokenStream(String filename) {
         this(new File(filename));
+    }
+
+    private void advance() {
+        if (reader == null) {
+            currentChar = -1;
+            eof = true;
+            return;
+        }
+        try {
+            currentChar = reader.read();
+            if (currentChar == -1) {
+                eof = true;
+            }
+        } catch (IOException e) {
+            currentChar = -1;
+            eof = true;
+        }
     }
 
     private int peek() {
@@ -45,72 +62,65 @@ public class TokenStream {
         return t;
     }
 
-    private int nextInternal() {
-        if (eof || reader == null) { eof = true; return -1; }
-        try {
-            currentChar = reader.read();
-            if (currentChar == -1) eof = true;
-        } catch (IOException e) {
-            eof = true;
-            currentChar = -1;
-        }
-        return currentChar;
-    }
-
-    private int nextInternal() { return nextInternal(); }
-
     public Token nextToken() {
+        if (eof || currentChar == -1) {
+            return makeToken("EOF", "");
+        }
+
         try {
-            while (!eof && Character.isWhitespace((char)currentChar)) {
-                if (currentChar == '\n') linenum++;
-                nextInternal();
+            while (!eof && currentChar != -1 && Character.isWhitespace((char) currentChar)) {
+                if (currentChar == '\n') {
+                    linenum++;
+                }
+                advance();
             }
 
             if (eof || currentChar == -1) {
-                return makeToken("EOF","");
+                return makeToken("EOF", "");
             }
 
-            char c = (char)currentChar;
+            char c = (char) currentChar;
             int p = peek();
 
             if (c == '/' && p == '/') {
+                reader.read();
                 while (!eof) {
                     int cc = reader.read();
                     if (cc == -1) { eof = true; break; }
                     if (cc == '\n') { linenum++; break; }
                 }
-                nextInternal();
+                advance();
                 return nextToken();
             }
 
             if (isOperatorChar(c)) {
-                if (isOperatorCharTwo(c,p)) {
-                    String op = ""+c+(char)reader.read();
-                    nextInternal();
-                    nextInternal();
-                    return makeToken("Operator",op);
+                if (isTwoCharOperatorStart(c, p)) {
+                    String op = "" + c + (char) reader.read();
+                    advance();
+                    advance();
+                    return makeToken("Operator", op);
                 }
-                nextInternal();
-                return makeToken("Operator",String.valueOf(c));
+                advance();
+                return makeToken("Operator", String.valueOf(c));
             }
 
             if (isSeparator(c)) {
-                nextInternal();
-                return makeToken("Other",String.valueOf(c));
+                advance();
+                return makeToken("Other", String.valueOf(c));
             }
 
             if (Character.isLetter(c) || c == '_') {
                 StringBuilder sb = new StringBuilder();
                 sb.append(c);
-                nextInternal();
+                advance();
 
                 while (!eof) {
                     int cc = reader.read();
-                    if (cc == -1) { eof=true; break; }
-                    char cc2=(char)cc;
-                    if (Character.isLetterOrDigit(cc2)||cc2=='_') {
+                    if (cc == -1) { eof = true; break; }
+                    char cc2 = (char) cc;
+                    if (Character.isLetterOrDigit(cc2) || cc2 == '_') {
                         sb.append(cc2);
-                        nextInternal();
+                        advance();
                     } else {
                         reader.unread(cc);
                         break;
@@ -119,134 +129,73 @@ public class TokenStream {
 
                 String word = sb.toString();
 
+                if (word.equals("True") || word.equals("False")) {
+                    return makeToken("Literal", word);
+                }
+
                 if (isKeyword(word)) {
-                    return makeToken("Keyword",word);
+                    return makeToken("Keyword", word);
                 }
-                if (word.equals("True")||word.equals("False")) {
-                    return makeToken("Literal",word);
-                }
-                if (Character.isUpperCase(word.charAt(0))&&(word.length()>1||Character.isAlphabetic(word.charAt(0)))) {
-                    boolean allUpper=true;
-                    for (int i=0;i<word.length();i++){
-                        if(!Character.isUpperCase(word.charAt(i))){
-                            allUpper=false;break;
-                        }
-                    }
-                    if (allUpper&&word.length()>1&&!word.equals("TRUE")){
-                        return makeToken("Literal",word);
-                    }
-                }
-                return makeToken("Identifier",word);
+
+                return makeToken("Identifier", word);
             }
 
             if (Character.isDigit(c)) {
                 StringBuilder sb = new StringBuilder();
                 sb.append(c);
-                nextInternal();
+                advance();
 
                 while (!eof) {
                     int cc = reader.read();
-                    if (cc == -1) { eof=true; break; }
-                    char c2=(char)cc;
+                    if (cc == -1) { eof = true; break; }
+                    char c2 = (char) cc;
                     if (Character.isDigit(c2)) {
                         sb.append(c2);
-                        nextInternal();
+                        advance();
                     } else {
                         reader.unread(cc);
                         break;
                     }
                 }
 
-                String num=sb.toString();
-                return makeToken("Literal",num);
+                return makeToken("Literal", sb.toString());
             }
 
-            nextInternal();
-            return makeToken("Other",String.valueOf(c));
+            advance();
+            return makeToken("Other", String.valueOf(c));
 
         } catch (Exception e) {
-            eof=true;
-            return makeToken("EOF","");
+            eof = true;
+            return makeToken("EOF", "");
         }
     }
 
     private boolean isSeparator(char c) {
-        return "(){}[],.;".indexOf(c)!=-1;
+        return "(){}[],.;".indexOf(c) != -1;
     }
 
     private boolean isOperatorChar(char c) {
-        return "!<>=+-*/%|&:".indexOf(c)!=-1 || c=='/';
+        return "+-*/%!=<>:&|".indexOf(c) != -1 || c == '/';
     }
-    
-    private boolean isOperatorStart(char c,int p){
-        if(c=='/'&&p=='=') return false;
-        return true;
-    }
-    
-    private boolean isOperatorChar(char c,int p){
-        if(c=='/'&& p=='*'){
-            return false;
-        }
-        return true;
-    }
-    
-    private boolean isOperatorCharTwo(char c,int p){
-        if(c=='&'){
-            if (p=='&'){
-                return true;
-            }
-            return false;
-        }
-        if(c=='|'){
-            if(p == '|'){
-                return true;
-            }
-            return false;
-        }
-        if(c=='='&& p=='='){
-            return true;
-        }
 
-        if(c=='!'&& p=='='){
-            return true;
-        }
-
-        if(c=='>'){
-            if(p >'='){
-                return true;
-            }
-            return false;
-        }
-
-        if(c=='<'){
-            if(p =='='){
-                return true;
-            }
-            return false;
-        }
-
-        if(c==':'&& p=='='){
-            return true;
-        }
-
+    private boolean isTwoCharOperatorStart(char c, int p) {
+        if (c == '&' && p == '&') return true;
+        if (c == '|' && p == '|') return true;
+        if (c == '=' && p == '=') return true;
+        if (c == '!' && p == '=') return true;
+        if (c == '<' && p == '=') return true;
+        if (c == '>' && p == '=') return true;
+        if (c == ':' && p == '=') return true;
         return false;
     }
 
-    private boolean isKeyword(String word){
+    private boolean isKeyword(String word) {
         return word.equals("bool") ||
-               word.equals("integer")||
-               word.equals("main")||
-               word.equals("while")||
-               word.equals("if")||
-               word.equals("else")||
+               word.equals("integer") ||
+               word.equals("main") ||
+               word.equals("while") ||
+               word.equals("if") ||
+               word.equals("else") ||
                word.equals("void");
     }
-
-    private boolean isSeparator(char c){
-        return "(){}[],.;".indexOf(c)!=-1;
-    }
-
-    private boolean isOperatorStart(char c,int p){
-        if (c=='/'&& p=='=') return false;
-        return true;
-    }
+}

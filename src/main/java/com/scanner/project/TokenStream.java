@@ -7,89 +7,40 @@ import java.io.IOException;
 public class TokenStream {
 
     private boolean isEof = false;
-    private char nextChar = ' ';
+    private char nextChar;
     private BufferedReader input;
     public int linenum = 0;
-
-    public boolean isEoFile() {
-        return isEof;
-    }
 
     public TokenStream(String fileName) {
         try {
             input = new BufferedReader(new FileReader(fileName));
-            readNext();
+            nextChar = readNext();
         } catch (Exception e) {
             isEof = true;
-            input = null;
         }
     }
 
-    private void readNext() {
-        int i;
+    private char readNext() {
+        int c;
         try {
-            i = (input == null) ? -1 : input.read();
+            if (input == null) return 0;
+            c = input.read();
         } catch (IOException e) {
+            return 0;
+        }
+        if (c == -1) {
             isEof = true;
-            nextChar = (char) 0;
-            return;
+            return 0;
         }
-        if (i == -1) {
-            isEof = true;
-            nextChar = (char) 0;
-        } else {
-            nextChar = (char) i;
-            if (nextChar == '\n') linenum++;
-        }
-    }
-
-    private char peek() {
-        if (isEof || input == null) return (char) 0;
-        try {
-            input.mark(1);
-            int i = input.read();
-            input.reset();
-            return (i == -1) ? (char) 0 : (char) i;
-        } catch (IOException e) {
-            return (char) 0;
-        }
-    }
-
-    private boolean isSeparator(char c) {
-        return "();,{}[].".indexOf(c) != -1;
-    }
-
-    private boolean isOperatorChar(char c) {
-        return "+-*/%=!<>|&:".indexOf(c) != -1;
-    }
-
-    private boolean isKeyword(String s) {
-        return s.equals("bool") || s.equals("else") || s.equals("if") ||
-               s.equals("integer") || s.equals("main") || s.equals("while") ||
-               s.equals("return") || s.equals("int") || s.equals("void");
-    }
-
-    private boolean isLetter(char c) {
-        return Character.isLetter(c) || c == '_';
-    }
-
-    private boolean isDigitChar(char c) {
-        return Character.isDigit(c);
+        if ((char)c == '\n') linenum++;
+        return (char) c;
     }
 
     public Token nextToken() {
         Token t = new Token();
-        t.setType("Other");
-        t.setValue("");
-
-        if (isEof || nextChar == 0) {
-            t.setType("EOF");
-            t.setValue("");
-            return t;
-        }
 
         while (!isEof && Character.isWhitespace(nextChar)) {
-            readNext();
+            nextChar = readNext();
         }
 
         if (isEof || nextChar == 0) {
@@ -98,85 +49,107 @@ public class TokenStream {
             return t;
         }
 
-        char c = nextChar;
-
-        if (c == '/' && peek() == '/') {
-            readNext();
-            while (!isEof) {
-                readNext();
-                if (nextChar == '\n' || nextChar == 0) break;
-            }
-            readNext();
-            return nextToken();
-        }
-
-        if (isOperatorChar(c)) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(c);
-            char p = peek();
-            if (!isEof && isOperatorChar(p)) {
-                String two = "" + c + p;
-                if (two.equals("**") || two.equals("==") || two.equals("!=") ||
-                    two.equals("&&") || two.equals("||") || two.equals(">=") ||
-                    two.equals("<=") || two.equals(":=")) {
-                    sb.append(p);
-                    readNext();
-                    readNext();
-                    t.setType("Operator");
-                    t.setValue(sb.toString());
-                    return t;
+        if (nextChar == '/' && input != null) {
+            input.mark(1);
+            char n;
+            try { n = (char)input.read(); input.reset(); } catch(Exception e){ n = 0;}
+            if (n == '/') {
+                nextChar = readNext();
+                while (!isEof && nextChar != '\n' && nextChar != 0) {
+                    nextChar = readNext();
                 }
+                nextChar = readNext();
+                return nextToken();
             }
-            readNext();
+        }
+
+        if ("+-*/%=!<>|&".indexOf(nextChar) != -1 && input != null) {
+            input.mark(1);
+            char n;
+            try { n = (char)input.read(); input.reset(); } catch(Exception e){ n = 0;}
+            String two = "" + nextChar + n;
+            if (two.equals("||") || two.equals("&&") || two.equals("==") ||
+                two.equals("!=") || two.equals(">=") || two.equals("<=") ||
+                two.equals(":=") ) {
+                t.setType("Operator");
+                t.setValue(two);
+                nextChar = readNext();
+                nextChar = readNext();
+                return t;
+            }
+            String one = String.valueOf(nextChar);
+            if (one.equals(":") && n == '=') {
+                t.setType("Operator");
+                t.setValue(":=");
+                nextChar = readNext();
+                nextChar = readNext();
+                return t;
+            }
             t.setType("Operator");
-            t.setValue(sb.toString());
+            t.setValue(one);
+            nextChar = readNext();
             return t;
         }
 
-        if (isSeparator(c)) {
-            readNext();
+        if ("();,{}[].".indexOf(nextChar) != -1) {
             t.setType("Separator");
-            t.setValue(String.valueOf(c));
+            t.setValue(String.valueOf(nextChar));
+            nextChar = readNext();
             return t;
         }
 
-        if (isLetter(c)) {
+        if (Character.isLetter(nextChar) || nextChar == '_') {
             StringBuilder sb = new StringBuilder();
-            sb.append(c);
-            readNext();
-            while (!isEof && isLetter(peek())) {
-                sb.append(peek());
-                readNext();
+            sb.append(nextChar);
+            nextChar = readNext();
+            while (!isEof && (Character.isLetterOrDigit(nextChar) || nextChar == '_')) {
+                sb.append(nextChar);
+                nextChar = readNext();
             }
             String word = sb.toString();
             if (word.equals("True") || word.equals("False")) {
                 t.setType("Literal");
                 t.setValue(word);
-            } else if (isKeyword(word)) {
+                return t;
+            }
+            if (word.equals("bool") || word.equals("if") || word.equals("else") ||
+                word.equals("integer") || word.equals("main") || word.equals("while")) {
                 t.setType("Keyword");
                 t.setValue(word);
-            } else {
+                return t;
+            }
+            if (word.equals("int") || word.equals("void") || word.equals("return")) {
+                t.setType("Keyword");
+                t.setValue(word);
+                return t;
+            }
+            if (word.equals("true") || word.equals("false") || word.equals("TRUE") ) {
                 t.setType("Identifier");
                 t.setValue(word);
+                return t;
             }
+            t.setType("Identifier");
+            t.setValue(word);
             return t;
         }
 
-        if (isDigitChar(c)) {
+        if (Character.isDigit(nextChar)) {
             StringBuilder sb = new StringBuilder();
-            while (!isEof && isDigitChar(peek())) {
-                sb.append(peek());
-                readNext();
+            sb.append(nextChar);
+            nextChar = readNext();
+            while (!isEof && Character.isDigit(nextChar)) {
+                sb.append(nextChar);
+                nextChar = readNext();
             }
-            readNext();
+            String num = sb.toString();
             t.setType("Literal");
-            t.setValue(sb.toString());
+            t.setValue(num);
             return t;
         }
 
         t.setType("Other");
-        t.setValue(String.valueOf(c));
-        readNext();
+        t.setValue(String.valueOf(nextChar));
+        nextChar = readNext();
         return t;
     }
 }

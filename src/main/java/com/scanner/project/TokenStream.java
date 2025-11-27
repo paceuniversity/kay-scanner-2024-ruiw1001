@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.PushbackReader;
 import java.io.IOException;
-import java.io.FileNotFoundException;
 
 public class TokenStream {
 
@@ -15,7 +14,7 @@ public class TokenStream {
     public TokenStream(File inputFile) {
         try {
             reader = new PushbackReader(new FileReader(inputFile));
-        } catch (FileNotFoundException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
@@ -27,7 +26,6 @@ public class TokenStream {
 
         try {
             int ch;
-
             while (true) {
                 ch = reader.read();
                 if (ch == -1) {
@@ -36,7 +34,6 @@ public class TokenStream {
                 }
                 if (ch == '\n') {
                     linenum++;
-                    continue;
                 }
                 if (!Character.isWhitespace(ch)) {
                     break;
@@ -90,18 +87,18 @@ public class TokenStream {
                 StringBuilder sb = new StringBuilder();
                 sb.append(c);
                 while (true) {
-                    reader.mark(1);
                     int nx = reader.read();
                     if (nx == -1) break;
                     char cc = (char) nx;
                     if (Character.isLetterOrDigit(cc) || cc == '_') {
                         sb.append(cc);
                     } else {
-                        reader.reset();
+                        reader.unread(nx);
                         break;
                     }
                 }
                 String word = sb.toString();
+
                 if (isKeyword(word)) {
                     return makeToken("Keyword", word);
                 } else if (isBooleanLiteral(word)) {
@@ -115,14 +112,13 @@ public class TokenStream {
                 StringBuilder sb = new StringBuilder();
                 sb.append(c);
                 while (true) {
-                    reader.mark(1);
                     int nx = reader.read();
                     if (nx == -1) break;
                     char cc = (char) nx;
                     if (Character.isDigit(cc)) {
                         sb.append(cc);
                     } else {
-                        reader.reset();
+                        reader.unread(nx);
                         break;
                     }
                 }
@@ -143,10 +139,21 @@ public class TokenStream {
         return t;
     }
 
+    private Token makeEOF() {
+        return makeToken("EOF", "");
+    }
+
+    private Token OtherToken(String v) {
+        return makeToken("Other", v);
+    }
+
+    private Token makeToken(String v) { 
+        return OtherToken(v);
+    }
+
     private boolean isSeparator(char c) {
-        return c == '(' || c == ')' ||
-               c == '{' || c == '}' ||
-               c == ';' || c == ',';
+        return c == '(' || c == ')' || c == '{' || c == '}' ||
+               c == ';' || c == ',' || c == '.';
     }
 
     private boolean isOperatorChar(char c) {
@@ -172,7 +179,7 @@ public class TokenStream {
                word.equals("main");
     }
 
-    private boolean isBooleanLiteral(String word) {
-        return word.equals("True") || word.equals("False");
+    private boolean isBooleanLiteral(String v) {
+        return v.equals("True") || v.equals("False");
     }
 }

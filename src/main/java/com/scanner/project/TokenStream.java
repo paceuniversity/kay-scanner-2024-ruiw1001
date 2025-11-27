@@ -2,7 +2,6 @@ package com.scanner.project;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.io.IOException;
 
 public class TokenStream {
 
@@ -14,10 +13,8 @@ public class TokenStream {
         try {
             input = new BufferedReader(new FileReader(fileName));
             current = input.read();
-            if (current == -1) {
-                isEof = true;
-            }
-        } catch (IOException e) {
+            if (current == -1) isEof = true;
+        } catch (Exception e) {
             isEof = true;
         }
     }
@@ -29,9 +26,9 @@ public class TokenStream {
     private int peek() {
         try {
             input.mark(1);
-            int next = input.read();
+            int n = input.read();
             input.reset();
-            return next;
+            return n;
         } catch (Exception e) {
             return -1;
         }
@@ -40,9 +37,7 @@ public class TokenStream {
     private void advance() {
         try {
             current = input.read();
-            if (current == -1) {
-                isEof = true;
-            }
+            if (current == -1) isEof = true;
         } catch (Exception e) {
             isEof = true;
         }
@@ -74,7 +69,10 @@ public class TokenStream {
             }
 
             if (isEof) {
-                return new Token("EOF", "");
+                Token t = new Token();
+                t.setType("EOF");
+                t.setValue("");
+                return t;
             }
 
             char c = (char) current;
@@ -89,23 +87,35 @@ public class TokenStream {
                     sb.append((char) current);
                     advance();
                 }
-                return new Token("Other", sb.toString());
+                Token t = new Token();
+                t.setType("Other");
+                t.setValue(sb.toString());
+                return t;
             }
 
             if (isMultiOperator(twoCharOp)) {
                 advance();
                 advance();
-                return new Token("Operator", twoCharOp);
+                Token t = new Token();
+                t.setType("Operator");
+                t.setValue(twoCharOp);
+                return t;
             }
 
             if (isSeparator(c)) {
                 advance();
-                return new Token("Separator", String.valueOf(c));
+                Token t = new Token();
+                t.setType("Separator");
+                t.setValue(String.valueOf(c));
+                return t;
             }
 
             if (isOperatorChar(c)) {
                 advance();
-                return new Token("Operator", String.valueOf(c));
+                Token t = new Token();
+                t.setType("Operator");
+                t.setValue(String.valueOf(c));
+                return t;
             }
 
             if (Character.isLetter(c)) {
@@ -115,23 +125,35 @@ public class TokenStream {
                     advance();
                 }
                 String word = sb.toString();
-                return new Token(isKeyword(word) ? "Keyword" : "Identifier", word);
+                Token t = new Token();
+                t.setType(isKeyword(word) ? "Keyword" : "Identifier");
+                t.setValue(word);
+                return t;
             }
 
             if (Character.isDigit(c)) {
-                String number = "";
+                String num = "";
                 while (!isEof && Character.isDigit(current)) {
-                    number += (char) current;
+                    num += (char) current;
                     advance();
                 }
-                return new Token("Literal", number);
+                Token t = new Token();
+                t.setType("Literal");
+                t.setValue(num);
+                return t;
             }
 
             advance();
-            return new Token("Other", String.valueOf(c));
+            Token t = new Token();
+            t.setType("Other");
+            t.setValue(String.valueOf(c));
+            return t;
 
         } catch (Exception e) {
-            return new Token("EOF", "");
+            Token t = new Token();
+            t.setType("EOF");
+            t.setValue("");
+            return t;
         }
     }
 }

@@ -41,97 +41,82 @@ public class TokenStream {
             return t;
         }
 
-        Token token = new Token();
         char c = (char) current;
 
-        if (c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']' || c == ',' || c == ';') {
-            token.setType("Separator");
-            token.setValue(String.valueOf(c));
+        if (isSeparator(c)) {
+            String value = String.valueOf(c);
+            Token t = new Token();
+            t.setType("Separator");
+            t.setValue(value);
             advance();
-            return token;
+            return t;
         }
 
-        if (c == '=' || c == '-' || c == '+' || c == '*' || c == '/') {
-            token.setType("Operator");
-            token.setValue(String.valueOf(c));
+        if (isOperator(c)) {
+            String value = String.valueOf(c);
+            Token t = new Token();
+            t.setType("Operator");
+            t.setValue(value);
             advance();
-            return token;
+            return t;
         }
 
-        if (isLetter(c)) {
+        if (Character.isLetter(c)) {
             StringBuilder sb = new StringBuilder();
-            while (!isEof && isLetter((char)current)) {
-                sb.append((char)current);
+            while (!isEof && Character.isLetterOrDigit(current)) {
+                sb.append((char) current);
                 advance();
             }
             String word = sb.toString();
+            Token t = new Token();
+            t.setValue(word);
             if (isKeyword(word)) {
-                token.setType("Keyword");
+                t.setType("Keyword");
             } else {
-                token.setType("Identifier");
+                t.setType("Identifier");
             }
-            token.setValue(word);
-            return token;
+            return t;
         }
 
-        if (isDigit(c)) {
+        if (Character.isDigit(c)) {
             StringBuilder sb = new StringBuilder();
-            while (!isEof && isDigit((char)current)) {
-                sb.append((char)current);
+            while (!isEof && Character.isDigit(current)) {
+                sb.append((char) current);
                 advance();
             }
-            token.setType("Literal");
-            token.setValue(sb.toString());
-            return token;
+            Token t = new Token();
+            t.setType("Literal");
+            t.setValue(sb.toString());
+            return t;
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append(c);
-        token.setType("Other");
-        token.setValue(sb.toString());
+        Token t = new Token();
+        t.setType("Other");
+        t.setValue(String.valueOf(c));
         advance();
-        return token;
+        return t;
     }
 
-    private boolean isKeyword(String word) {
-        return word.equals("if") || word.equals("else") || word.equals("while") || word.equals("return") || word.equals("int") || word.equals("String");
+    private boolean isSeparator(char c) {
+        return c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']' || c == ',' || c == ';';
+    }
+
+    private boolean isOperator(char c) {
+        return c == '+' || c == '-' || c == '*' || c == '/' || c == '=' || c == '<' || c == '>' || c == '|' || c == '&';
     }
 
     private boolean isKeyword(String s) {
-        return isKeyword(s);
-    }
-
-    private boolean isKeyword(String s) {
-        return s.equals("if") || s.equals("else") || s.equals("while") || s.equals("return") || s.equals("int") || s.equals("String");
-    }
-
-
-    private boolean isKeyword(String word) {
-        return word.equals("if") || word.equals("else") || word.equals("while") || word.equals("return") || word.equals("int") || word.equals("String");
-    }
-
-    private boolean isKeyword(String word) {
-        switch (word) {
+        switch (s) {
             case "if":
             case "else":
             case "while":
             case "return":
             case "int":
             case "String":
+            case "Keyword":
                 return true;
+            default:
+                return false;
         }
-        return false;
-    }
-
-    private boolean isLetter(char c) {
-        return Character.isLetter(c);
-    }
-
-    private boolean isDigit(char c) {
-        return Character.isDigit(c);
-    }
-
-    private boolean isKeyword(String word) {
-        return word.equals("int") || word.equals("String") || word.equals("if") || word.equals("else") || word.equals("while") || word.equals("return");
     }
 }

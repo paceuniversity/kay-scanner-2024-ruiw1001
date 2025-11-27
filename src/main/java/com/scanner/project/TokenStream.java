@@ -43,12 +43,13 @@ public class TokenStream {
 
         char c = (char) current;
 
-        if (c == '/' && (char)peek() == '/') {
+        int next = peek();
+        if (c == '/' && next == '/') {
             StringBuilder sb = new StringBuilder();
             sb.append("//");
             advance(); advance();
             while (!isEof && current != '\n') {
-                sb.append((char)current);
+                sb.append((char) current);
                 advance();
             }
             Token t = new Token();
@@ -57,52 +58,49 @@ public class TokenStream {
             return t;
         }
 
-        String two = c + "" + (char)peek();
-        if (isMultiOperator(two)) {
-            Token t = new Token();
-            t.setType("Operator");
-            t.setValue(two);
+        char nc = (char) next;
+        String twoOp = "" + c + nc;
+        if (isMultiOperator(twoOp)) {
             advance(); advance();
-            return t;
-        }
-
-        if (isOperator(c)) {
             Token t = new Token();
             t.setType("Operator");
-            t.setValue(String.valueOf(c));
-            advance();
+            t.setValue(twoOp);
             return t;
         }
 
         if (isSeparator(c)) {
+            advance();
             Token t = new Token();
             t.setType("Separator");
             t.setValue(String.valueOf(c));
+            return t;
+        }
+
+        if (isOperator(c)) {
             advance();
+            Token t = new Token();
+            t.setType("Operator");
+            t.setValue(String.valueOf(c));
             return t;
         }
 
         if (Character.isLetter(c)) {
             StringBuilder sb = new StringBuilder();
             while (!isEof && Character.isLetterOrDigit(current)) {
-                sb.append((char)current);
+                sb.append((char) current);
                 advance();
             }
             String word = sb.toString();
             Token t = new Token();
             t.setValue(word);
-            if (isKeyword(word)) {
-                t.setType("Keyword");
-            } else {
-                t.setType("Identifier");
-            }
+            t.setType(isKeyword(word) ? "Keyword" : "Identifier");
             return t;
         }
 
         if (Character.isDigit(c)) {
             StringBuilder sb = new StringBuilder();
             while (!isEof && Character.isDigit(current)) {
-                sb.append((char)current);
+                sb.append((char) current);
                 advance();
             }
             Token t = new Token();
@@ -111,10 +109,10 @@ public class TokenStream {
             return t;
         }
 
+        advance();
         Token t = new Token();
         t.setType("Other");
         t.setValue(String.valueOf(c));
-        advance();
         return t;
     }
 
@@ -125,16 +123,26 @@ public class TokenStream {
         return n == -1 ? 0 : n;
     }
 
-    private int peek() throws IOException {
-        return peek();
-    }
-
     private boolean isSeparator(char c) {
         return "(){}[],;".indexOf(c) != -1;
     }
 
     private boolean isOperator(char c) {
         return "+-*/<>=|&!:".indexOf(c) != -1;
+    }
+
+    private boolean isMultiOperator(String op) {
+        return op.equals("==") || op.equals("!=") || op.equals(">=") ||
+               op.equals("<=") || op.equals("||") || op.equals("&&") ||
+               op.equals(":=");
+    }
+
+    private boolean isMultiOperator(String s) {
+        return isMultiOperator(s);
+    }
+
+    private boolean isOperator(char c) {
+        return isOperator(c);
     }
 
     private boolean isKeyword(String s) {
@@ -146,9 +154,8 @@ public class TokenStream {
                s.equals("while");
     }
 
-    private boolean isMultiOperator(String op) {
-        return op.equals("==") || op.equals("!=") || op.equals(">=") ||
-               op.equals("<=") || op.equals("||") || op.equals("&&") ||
-               op.equals(":=");
+    private boolean isMultiOperator(String s) {
+        return isMultiOperator(s);
     }
+
 }

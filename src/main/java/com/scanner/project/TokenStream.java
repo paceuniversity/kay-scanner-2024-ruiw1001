@@ -48,7 +48,6 @@ public class TokenStream {
 
             char c = (char) current;
             int next = peek();
-            String op2 = "" + c + (char) next;
 
             if (c == '/' && next == '/') {
                 StringBuilder sb = new StringBuilder();
@@ -64,11 +63,12 @@ public class TokenStream {
                 return t;
             }
 
-            if (isMultiOperator(op2)) {
+            String twoOp = "" + c + (char) next;
+            if (isMultiOperator(twoOp)) {
                 advance(); advance();
                 Token t = new Token();
                 t.setType("Operator");
-                t.setValue(op2);
+                t.setValue(twoOp);
                 return t;
             }
 
@@ -102,14 +102,14 @@ public class TokenStream {
             }
 
             if (Character.isDigit(c)) {
-                StringBuilder sb = new StringBuilder();
+                String num = "";
                 while (!isEof && Character.isDigit(current)) {
-                    sb.append((char) current);
+                    num += (char) current;
                     advance();
                 }
                 Token t = new Token();
                 t.setType("Literal");
-                t.setValue(sb.toString());
+                t.setValue(num);
                 return t;
             }
 
@@ -142,18 +142,23 @@ public class TokenStream {
         return "(){}[],;".indexOf(c) != -1;
     }
 
-    private boolean isMultiOperator(String s) {
-        return s.equals("==") || s.equals("!=") || s.equals(">=") ||
-               s.equals("<=") || s.equals("||") || s.equals("&&") ||
-               s.equals(":=");
+    private boolean isOperatorChar(char c) {
+        return "+-*/<>=|&!:".indexOf(c) != -1;
     }
 
     private boolean isKeyword(String s) {
-        return s.equals("bool") || s.equals("else") || s.equals("if") ||
-               s.equals("integer") || s.equals("main") || s.equals("while");
+        return s.equals("bool") ||
+               s.equals("else") ||
+               s.equals("if") ||
+               s.equals("integer") ||
+               s.equals("main") ||
+               s.equals("while");
     }
 
-    private boolean isOperatorChar(char c) {
-        return "+-*/<>=|&!:".indexOf(c) != -1;
+    private boolean isMultiOperator(String op) {
+        return op.equals("==") || op.equals("!=") ||
+               op.equals(">=") || op.equals("<=") ||
+               op.equals("||") || op.equals("&&") ||
+               op.equals(":=");
     }
 }

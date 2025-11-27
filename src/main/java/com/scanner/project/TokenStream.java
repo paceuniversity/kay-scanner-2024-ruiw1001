@@ -43,20 +43,41 @@ public class TokenStream {
 
         char c = (char) current;
 
-        if (isSeparator(c)) {
-            String value = String.valueOf(c);
+        if (c == '/' && (char)peek() == '/') {
+            StringBuilder sb = new StringBuilder();
+            sb.append("//");
+            advance(); advance();
+            while (!isEof && current != '\n') {
+                sb.append((char)current);
+                advance();
+            }
             Token t = new Token();
-            t.setType("Separator");
-            t.setValue(value);
-            advance();
+            t.setType("Other");
+            t.setValue(sb.toString());
+            return t;
+        }
+
+        String two = c + "" + (char)peek();
+        if (isMultiOperator(two)) {
+            Token t = new Token();
+            t.setType("Operator");
+            t.setValue(two);
+            advance(); advance();
             return t;
         }
 
         if (isOperator(c)) {
-            String value = String.valueOf(c);
             Token t = new Token();
             t.setType("Operator");
-            t.setValue(value);
+            t.setValue(String.valueOf(c));
+            advance();
+            return t;
+        }
+
+        if (isSeparator(c)) {
+            Token t = new Token();
+            t.setType("Separator");
+            t.setValue(String.valueOf(c));
             advance();
             return t;
         }
@@ -64,7 +85,7 @@ public class TokenStream {
         if (Character.isLetter(c)) {
             StringBuilder sb = new StringBuilder();
             while (!isEof && Character.isLetterOrDigit(current)) {
-                sb.append((char) current);
+                sb.append((char)current);
                 advance();
             }
             String word = sb.toString();
@@ -81,7 +102,7 @@ public class TokenStream {
         if (Character.isDigit(c)) {
             StringBuilder sb = new StringBuilder();
             while (!isEof && Character.isDigit(current)) {
-                sb.append((char) current);
+                sb.append((char)current);
                 advance();
             }
             Token t = new Token();
@@ -97,26 +118,37 @@ public class TokenStream {
         return t;
     }
 
+    private int peek() throws IOException {
+        input.mark(1);
+        int n = input.read();
+        input.reset();
+        return n == -1 ? 0 : n;
+    }
+
+    private int peek() throws IOException {
+        return peek();
+    }
+
     private boolean isSeparator(char c) {
-        return c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']' || c == ',' || c == ';';
+        return "(){}[],;".indexOf(c) != -1;
     }
 
     private boolean isOperator(char c) {
-        return c == '+' || c == '-' || c == '*' || c == '/' || c == '=' || c == '<' || c == '>' || c == '|' || c == '&';
+        return "+-*/<>=|&!:".indexOf(c) != -1;
     }
 
     private boolean isKeyword(String s) {
-        switch (s) {
-            case "if":
-            case "else":
-            case "while":
-            case "return":
-            case "int":
-            case "String":
-            case "Keyword":
-                return true;
-            default:
-                return false;
-        }
+        return s.equals("bool") ||
+               s.equals("else") ||
+               s.equals("if") ||
+               s.equals("integer") ||
+               s.equals("main") ||
+               s.equals("while");
+    }
+
+    private boolean isMultiOperator(String op) {
+        return op.equals("==") || op.equals("!=") || op.equals(">=") ||
+               op.equals("<=") || op.equals("||") || op.equals("&&") ||
+               op.equals(":=");
     }
 }
